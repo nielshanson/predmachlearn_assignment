@@ -1,0 +1,91 @@
+Practical Machine Learning Prediction Assignment
+========================================================
+
+## About the Data
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Obtaining Data
+```{r}
+setwd("~/Desktop/data_science/08_ml/assign/")
+# training set
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",
+              "pml-training.csv", method="curl")
+# testing set
+download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",
+              "pml-testing.csv", method="curl")
+download_date <- date()
+
+```
+
+This data as obtained `r download_date`.
+
+## Summary
+
+We would like to predict the behavior while doing the curl. The five classes of the `classe` variable are:
+* **A** Correct curl
+* **B** Throwing elbows to the front
+* **C** Lifting the dumbbell halfway
+* **D** Lowering the dumbbell halfway
+* **E** Moving hips forward
+
+## Load Data and Necessary Packages
+```{r}
+library(caret)
+training <- read.csv("pml-training.csv")
+testing <- read.csv("pml-testing.csv")
+```
+
+## Cleaning data
+
+Some of these variables have large numbers of missing values `NA` and empty strings `""` which can't be all that informative.
+
+```{r}
+training[training==""] = NA # replace all empty strings with NA
+testing[testing==""] = NA
+remove = vector()
+for (i in names(training)){
+    if ( sum(is.na(training[i])) > 0) {
+        remove <- c(remove, i)
+    } 
+}
+training <- training[!(names(training) %in% remove)]
+testing <- testing[!(names(training) %in% remove)]
+```
+
+Next we will remove columsn like name, id, time, which are unlikely to have much predictive power.
+
+```{r}
+training <- training[,-c(1:7)]
+testing <- testing[,-c(1:7)]
+```
+
+# Prediction
+
+Here we'll use a random forest algorithm and divide the training data into 70% training set and 30% validation set.
+
+```{r}
+set.seed(12345)
+inTrain <- createDataPartition(y=training$classe,p=0.7,list=FALSE)[,1]
+train <- training[inTrain,]
+test <- training[-inTrain,]
+```
+
+Train the model using training set and predict using validation set to evaluate the estimated prediction error using a confusion matrix.
+```{r, cache=TRUE}
+set.seed(54321)
+fit <- train(classe~., data=train, method="rf", ntree=10)
+
+# predict on the test set to evaluate the error
+pred <- predict(fit, newdata=test)
+confusionMatrix(test$classe, pred)
+est_acc<- round(confusionMatrix(test$classe, pred)$overall["Accuracy"] *100, 2)
+```
+
+The extimated accuracy of the models is about `r est_acc`%.
+
+Finally, we will train the model on the full training set `training` and predict on the official test set `testing`.
+```{r, cache=TRUE}
+final_fit <- train(classe~., data=training,  method="rf", ntree=10)
+final_predictions <- predict(final_fit, newdata=testing)
+```
